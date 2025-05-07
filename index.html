@@ -28,7 +28,6 @@
       position: relative;
     }
 
-    /* Power switch container */
     .power-container {
       position: absolute;
       top: 20px;
@@ -81,13 +80,11 @@
       transform: translateX(26px);
     }
 
-    /* Weather station container - initially hidden */
     .weather-station {
       display: none;
       width: 100%;
     }
 
-    /* Weather effects */
     .weather-effect {
       position: absolute;
       z-index: -1;
@@ -239,7 +236,6 @@
       margin-right: 8px;
     }
 
-    /* Sensor animation */
     @keyframes sensorPulse {
       0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
       70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
@@ -261,7 +257,6 @@
       animation: sensorPulse 2s infinite;
     }
 
-    /* Welcome screen */
     .welcome-screen {
       text-align: center;
       padding: 2rem;
@@ -278,7 +273,22 @@
       margin-bottom: 2rem;
     }
 
-    /* Responsive design */
+    /* Hidden sensor button - BOTTOM-RIGHT CORNER */
+    .hidden-sensor-btn {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      width: 80px;
+      height: 80px;
+      opacity: 0.01;
+      cursor: pointer;
+      z-index: 1000;
+      border-radius: 50%;
+      background: transparent;
+      border: none;
+      outline: none;
+    }
+
     @media (max-width: 900px) {
       .weather-container {
         flex-direction: column;
@@ -298,7 +308,6 @@
   </style>
 </head>
 <body>
-  <!-- Power Switch -->
   <div class="power-container">
     <label class="power-switch">
       <input type="checkbox" id="powerSwitch">
@@ -306,39 +315,33 @@
     </label>
   </div>
 
-  <!-- Welcome Screen (shown by default) -->
   <div class="welcome-screen" id="welcomeScreen">
     <h1>Weather Station</h1>
     <p>Turn on the switch to activate the interactive weather station</p>
   </div>
 
-  <!-- Weather Station (hidden by default) -->
   <div class="weather-station" id="weatherStation">
     <div class="location" id="location">Calape, Bohol, Philippines</div>
     
     <div class="weather-container">
-      <!-- Weather Condition Card -->
       <div class="weather-card" id="conditionCard">
         <h3>Weather</h3>
         <div class="weather-icon" id="weatherIcon"><i class="fas fa-question"></i></div>
         <div id="weatherCondition">--</div>
       </div>
 
-      <!-- Temperature Card -->
       <div class="weather-card" id="tempCard">
         <h3>Temperature</h3>
         <div class="weather-icon"><i class="fas fa-thermometer-half"></i></div>
         <div id="temperature" class="value">--<span class="unit">°C</span></div>
       </div>
 
-      <!-- Humidity Card -->
       <div class="weather-card" id="humidityCard">
         <h3>Humidity</h3>
         <div class="weather-icon"><i class="fas fa-tint"></i></div>
         <div id="humidity" class="value">--<span class="unit">%</span></div>
       </div>
 
-      <!-- Pressure Card -->
       <div class="weather-card" id="pressureCard">
         <h3>Pressure</h3>
         <div class="weather-icon"><i class="fas fa-tachometer-alt"></i></div>
@@ -349,8 +352,10 @@
     <button class="btn-refresh" onclick="getWeather(true)"><i class="fas fa-sync-alt"></i> Refresh</button>
   </div>
 
+  <!-- Hidden sensor button (BOTTOM-RIGHT CORNER) -->
+  <button class="hidden-sensor-btn" id="hiddenSensorBtn"></button>
+
   <script>
-    // Weather data and elements
     let lastTemp = null;
     let lastHumidity = null;
     let lastPressure = null;
@@ -359,8 +364,8 @@
     let isFirstLoad = true;
     let weatherInterval;
     let sensorInterval;
+    let cooldownInterval;
     
-    // Weather icon mappings
     const weatherIcons = {
       'sunny': 'fas fa-sun',
       'clear': 'fas fa-sun',
@@ -376,43 +381,124 @@
       'default': 'fas fa-cloud-sun'
     };
     
-    // Power switch functionality
     document.getElementById('powerSwitch').addEventListener('change', function() {
       const welcomeScreen = document.getElementById('welcomeScreen');
       const weatherStation = document.getElementById('weatherStation');
       
       if (this.checked) {
-        // Turn ON
         welcomeScreen.style.display = 'none';
         weatherStation.style.display = 'block';
         initializeWeatherStation();
       } else {
-        // Turn OFF
         welcomeScreen.style.display = 'block';
         weatherStation.style.display = 'none';
         shutdownWeatherStation();
       }
     });
 
-    function initializeWeatherStation() {
-      // Start the weather station
-      getWeather();
+  
+    let lastTapTime = 0;
+    let isHeating = false;
+    
+    document.getElementById('hiddenSensorBtn').addEventListener('click', function() {
+      const currentTime = new Date().getTime();
+      const doubleTapThreshold = 300; // ms between taps
       
-      // Set up periodic updates
-      weatherInterval = setInterval(getWeather, 180000); // 3 minutes
+      // Double-tap detection
+      if (currentTime - lastTapTime < doubleTapThreshold) {
+        resetToNormal();
+        lastTapTime = 0;
+        return;
+      }
+      lastTapTime = currentTime;
+      
+      // Start heating if not already
+      if (!isHeating) {
+        isHeating = true;
+        startHeating();
+      }
+    });
+
+    function startHeating() {
+      if (!lastTemp || !lastHumidity) return;
+      
+      // Clear any existing intervals
+      if (cooldownInterval) clearInterval(cooldownInterval);
+      
+      const heatInterval = setInterval(() => {
+        if (!isHeating) {
+          clearInterval(heatInterval);
+          startCoolDown();
+          return;
+        }
+        
+        // Gradually increase temp/decrease humidity
+        lastTemp = Math.min(50, lastTemp + 0.3);
+        lastHumidity = Math.max(10, lastHumidity - 0.5);
+        
+        // Update display
+        document.getElementById("temperature").innerHTML = `${lastTemp.toFixed(1)}<span class="unit">°C</span>`;
+        document.getElementById("humidity").innerHTML = `${Math.round(lastHumidity)}<span class="unit">%</span>`;
+        document.getElementById("temperature").style.color = getTemperatureColor(lastTemp);
+        
+        // Stop at max values
+        if (lastTemp >= 50 || lastHumidity <= 10) {
+          clearInterval(heatInterval);
+          startCoolDown();
+        }
+      }, 100); // Adjust speed here (lower = faster)
+    }
+
+    function resetToNormal() {
+      isHeating = false;
+      if (cooldownInterval) clearInterval(cooldownInterval);
+      
+      // Immediate reset to normal values
+      lastTemp = 25;
+      lastHumidity = 60;
+      
+      document.getElementById("temperature").innerHTML = `25.0<span class="unit">°C</span>`;
+      document.getElementById("humidity").innerHTML = `60<span class="unit">%</span>`;
+      document.getElementById("temperature").style.color = getTemperatureColor(25);
+    }
+
+    function startCoolDown() {
+      isHeating = false;
+      cooldownInterval = setInterval(() => {
+        const tempDiff = lastTemp - 25; // Target normal temp
+        const humidityDiff = 60 - lastHumidity; // Target normal humidity
+        
+        if (Math.abs(tempDiff) > 0.1) {
+          lastTemp -= tempDiff * 0.1; // Faster cooldown
+          document.getElementById("temperature").innerHTML = `${lastTemp.toFixed(1)}<span class="unit">°C</span>`;
+          document.getElementById("temperature").style.color = getTemperatureColor(lastTemp);
+        }
+        
+        if (Math.abs(humidityDiff) > 0.5) {
+          lastHumidity += humidityDiff * 0.1; // Faster cooldown
+          document.getElementById("humidity").innerHTML = `${Math.round(lastHumidity)}<span class="unit">%</span>`;
+        }
+        
+        if (Math.abs(tempDiff) < 0.1 && Math.abs(humidityDiff) < 0.5) {
+          clearInterval(cooldownInterval);
+        }
+      }, 100);
+    }
+    function initializeWeatherStation() {
+      getWeather();
+      weatherInterval = setInterval(getWeather, 180000);
       sensorInterval = setInterval(() => {
         if (!isFirstLoad) {
           getWeather();
         }
-      }, 5000); // 5 seconds
+      }, 5000);
     }
 
     function shutdownWeatherStation() {
-      // Clear all intervals
       clearInterval(weatherInterval);
       clearInterval(sensorInterval);
+      clearInterval(cooldownInterval);
       
-      // Clear weather effects
       weatherEffects.forEach(effect => {
         if (effect.parentNode) {
           effect.parentNode.removeChild(effect);
@@ -421,14 +507,12 @@
       weatherEffects = [];
     }
 
-    // Simulate sensor drift between updates
     function simulateSensorDrift(value, precision = 1) {
       const fluctuation = (Math.random() - 0.5) * precision;
       return value + fluctuation;
     }
 
     async function getWeather(forceUpdate = false) {
-      // Show loading state
       document.getElementById('tempCard').classList.add('sensor-active');
       document.getElementById('humidityCard').classList.add('sensor-active');
       document.getElementById('pressureCard').classList.add('sensor-active');
