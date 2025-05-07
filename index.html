@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Interactive Weather Station</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --sunny-bg: linear-gradient(135deg, #ffc371 0%, #ff5f6d 100%);
+      --cloudy-bg: linear-gradient(135deg, #bdc3c7 0%, #2c3e50 100%);
+      --rainy-bg: linear-gradient(135deg, #3a7bd5 0%, #00d2ff 100%);
+      --default-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--default-bg);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      color: white;
+      transition: background 1s ease-in-out;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Power switch container */
+    .power-container {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 100;
+    }
+
+    .power-switch {
+      position: relative;
+      display: inline-block;
+      width: 60px;
+      height: 34px;
+    }
+
+    .power-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .power-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 34px;
+    }
+
+    .power-slider:before {
+      position: absolute;
+      content: "";
+      height: 26px;
+      width: 26px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+
+    input:checked + .power-slider {
+      background-color: #4CAF50;
+    }
+
+    input:checked + .power-slider:before {
+      transform: translateX(26px);
+    }
+
+    /* Weather station container - initially hidden */
+    .weather-station {
+      display: none;
+      width: 100%;
+    }
+
+    /* Weather effects */
+    .weather-effect {
+      position: absolute;
+      z-index: -1;
+    }
+
+    .sun {
+      width: 150px;
+      height: 150px;
+      background: radial-gradient(circle, #ffeb3b 30%, rgba(255, 235, 59, 0.3) 70%);
+      border-radius: 50%;
+      box-shadow: 0 0 50px #ffeb3b;
+      top: 50px;
+      right: 100px;
+      animation: pulse 4s infinite alternate;
+    }
+
+    .cloud {
+      background: white;
+      border-radius: 50px;
+      width: 200px;
+      height: 60px;
+      position: absolute;
+      opacity: 0.8;
+    }
+
+    .cloud:before, .cloud:after {
+      content: '';
+      background: white;
+      border-radius: 50%;
+      position: absolute;
+    }
+
+    .cloud:before {
+      width: 70px;
+      height: 70px;
+      top: -40px;
+      left: 30px;
+    }
+
+    .cloud:after {
+      width: 50px;
+      height: 50px;
+      top: -20px;
+      left: 80px;
+    }
+
+    .rain {
+      position: absolute;
+      width: 2px;
+      height: 15px;
+      background: rgba(255, 255, 255, 0.7);
+      animation: rain 1s linear infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      100% { transform: scale(1.1); }
+    }
+
+    @keyframes cloudMove {
+      0% { transform: translateX(-100px); }
+      100% { transform: translateX(calc(100vw + 100px)); }
+    }
+
+    @keyframes rain {
+      0% { transform: translateY(-50px); }
+      100% { transform: translateY(100vh); }
+    }
+
+    .location {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      text-align: center;
+      text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    .weather-container {
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .weather-card {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 2rem;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+      text-align: center;
+      width: 250px;
+      transition: 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .weather-card:hover {
+      transform: scale(1.03);
+    }
+
+    .weather-card h3 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .weather-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      transition: all 0.5s ease;
+    }
+
+    .value {
+      font-size: 2.5rem;
+      font-weight: bold;
+      margin: 0.5rem 0;
+      color: #ffffff;
+      transition: color 0.3s ease;
+    }
+
+    .unit {
+      font-size: 1rem;
+      opacity: 0.8;
+    }
+
+    .btn-refresh {
+      margin-top: 2rem;
+      background: rgba(255, 255, 255, 0.2);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      padding: 0.8rem 2rem;
+      border-radius: 50px;
+      color: white;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 1rem;
+      font-weight: bold;
+      backdrop-filter: blur(5px);
+    }
+
+    .btn-refresh:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .btn-refresh:active {
+      transform: translateY(0);
+    }
+
+    .btn-refresh i {
+      margin-right: 8px;
+    }
+
+    /* Sensor animation */
+    @keyframes sensorPulse {
+      0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+    }
+
+    .sensor-active {
+      position: relative;
+    }
+
+    .sensor-active:after {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      border-radius: 20px;
+      animation: sensorPulse 2s infinite;
+    }
+
+    /* Welcome screen */
+    .welcome-screen {
+      text-align: center;
+      padding: 2rem;
+      max-width: 500px;
+    }
+
+    .welcome-screen h1 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .welcome-screen p {
+      font-size: 1.2rem;
+      margin-bottom: 2rem;
+    }
+
+    /* Responsive design */
+    @media (max-width: 900px) {
+      .weather-container {
+        flex-direction: column;
+        gap: 1rem;
+      }
+      
+      .weather-card {
+        width: 80vw;
+        padding: 1.5rem;
+      }
+      
+      body {
+        height: auto;
+        padding: 2rem 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Power Switch -->
+  <div class="power-container">
+    <label class="power-switch">
+      <input type="checkbox" id="powerSwitch">
+      <span class="power-slider"></span>
+    </label>
+  </div>
+
+  <!-- Welcome Screen (shown by default) -->
+  <div class="welcome-screen" id="welcomeScreen">
+    <h1>Weather Station</h1>
+    <p>Turn on the switch to activate the interactive weather station</p>
+  </div>
+
+  <!-- Weather Station (hidden by default) -->
+  <div class="weather-station" id="weatherStation">
+    <div class="location" id="location">Calape, Bohol, Philippines</div>
+    
+    <div class="weather-container">
+      <!-- Weather Condition Card -->
+      <div class="weather-card" id="conditionCard">
+        <h3>Weather</h3>
+        <div class="weather-icon" id="weatherIcon"><i class="fas fa-question"></i></div>
+        <div id="weatherCondition">--</div>
+      </div>
+
+      <!-- Temperature Card -->
+      <div class="weather-card" id="tempCard">
+        <h3>Temperature</h3>
+        <div class="weather-icon"><i class="fas fa-thermometer-half"></i></div>
+        <div id="temperature" class="value">--<span class="unit">°C</span></div>
+      </div>
+
+      <!-- Humidity Card -->
+      <div class="weather-card" id="humidityCard">
+        <h3>Humidity</h3>
+        <div class="weather-icon"><i class="fas fa-tint"></i></div>
+        <div id="humidity" class="value">--<span class="unit">%</span></div>
+      </div>
+
+      <!-- Pressure Card -->
+      <div class="weather-card" id="pressureCard">
+        <h3>Pressure</h3>
+        <div class="weather-icon"><i class="fas fa-tachometer-alt"></i></div>
+        <div id="pressure" class="value">--<span class="unit">hPa</span></div>
+      </div>
+    </div>
+
+    <button class="btn-refresh" onclick="getWeather(true)"><i class="fas fa-sync-alt"></i> Refresh</button>
+  </div>
+
+  <script>
+    // Weather data and elements
+    let lastTemp = null;
+    let lastHumidity = null;
+    let lastPressure = null;
+    let currentCondition = null;
+    let weatherEffects = [];
+    let isFirstLoad = true;
+    let weatherInterval;
+    let sensorInterval;
+    
+    // Weather icon mappings
+    const weatherIcons = {
+      'sunny': 'fas fa-sun',
+      'clear': 'fas fa-sun',
+      'cloudy': 'fas fa-cloud',
+      'partly cloudy': 'fas fa-cloud-sun',
+      'overcast': 'fas fa-cloud',
+      'mist': 'fas fa-smog',
+      'fog': 'fas fa-smog',
+      'rain': 'fas fa-cloud-rain',
+      'drizzle': 'fas fa-cloud-rain',
+      'thunderstorm': 'fas fa-bolt',
+      'snow': 'fas fa-snowflake',
+      'default': 'fas fa-cloud-sun'
+    };
+    
+    // Power switch functionality
+    document.getElementById('powerSwitch').addEventListener('change', function() {
+      const welcomeScreen = document.getElementById('welcomeScreen');
+      const weatherStation = document.getElementById('weatherStation');
+      
+      if (this.checked) {
+        // Turn ON
+        welcomeScreen.style.display = 'none';
+        weatherStation.style.display = 'block';
+        initializeWeatherStation();
+      } else {
+        // Turn OFF
+        welcomeScreen.style.display = 'block';
+        weatherStation.style.display = 'none';
+        shutdownWeatherStation();
+      }
+    });
+
+    function initializeWeatherStation() {
+      // Start the weather station
+      getWeather();
+      
+      // Set up periodic updates
+      weatherInterval = setInterval(getWeather, 180000); // 3 minutes
+      sensorInterval = setInterval(() => {
+        if (!isFirstLoad) {
+          getWeather();
+        }
+      }, 5000); // 5 seconds
+    }
+
+    function shutdownWeatherStation() {
+      // Clear all intervals
+      clearInterval(weatherInterval);
+      clearInterval(sensorInterval);
+      
+      // Clear weather effects
+      weatherEffects.forEach(effect => {
+        if (effect.parentNode) {
+          effect.parentNode.removeChild(effect);
+        }
+      });
+      weatherEffects = [];
+    }
+
+    // Simulate sensor drift between updates
+    function simulateSensorDrift(value, precision = 1) {
+      const fluctuation = (Math.random() - 0.5) * precision;
+      return value + fluctuation;
+    }
+
+    async function getWeather(forceUpdate = false) {
+      // Show loading state
+      document.getElementById('tempCard').classList.add('sensor-active');
+      document.getElementById('humidityCard').classList.add('sensor-active');
+      document.getElementById('pressureCard').classList.add('sensor-active');
+      
+      const apiKey = "b791272ee1214300881163644250705";
+      const location = "Calape, Bohol";
+      
+      try {
+        if (forceUpdate || isFirstLoad) {
+          const url = `https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${location}`;
+          const response = await fetch(url);
+          const data = await response.json();
+          
+          lastTemp = data.current.temp_c;
+          lastHumidity = data.current.humidity;
+          lastPressure = data.current.pressure_mb;
+          currentCondition = data.current.condition.text.toLowerCase();
+          
+          document.getElementById('weatherCondition').textContent = data.current.condition.text;
+          updateWeatherIcon(currentCondition);
+          setWeatherBackground(currentCondition);
+          
+          isFirstLoad = false;
+        }
+        
+        const tempValue = simulateSensorDrift(lastTemp, 0.3);
+        const humidityValue = simulateSensorDrift(lastHumidity, 1);
+        const pressureValue = simulateSensorDrift(lastPressure, 0.5);
+        
+        smoothUpdateValue("temperature", tempValue, document.getElementById("temperature").textContent.replace('°C', ''));
+        smoothUpdateValue("humidity", humidityValue, document.getElementById("humidity").textContent.replace('%', ''));
+        smoothUpdateValue("pressure", pressureValue, document.getElementById("pressure").textContent.replace('hPa', ''));
+        
+      } catch (err) {
+        console.error("Weather fetch error:", err);
+        document.getElementById("temperature").textContent = "--°C";
+        document.getElementById("humidity").textContent = "--%";
+        document.getElementById("pressure").textContent = "--hPa";
+        document.getElementById("weatherCondition").textContent = "Unavailable";
+        document.getElementById("weatherIcon").innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+      } finally {
+        setTimeout(() => {
+          document.getElementById('tempCard').classList.remove('sensor-active');
+          document.getElementById('humidityCard').classList.remove('sensor-active');
+          document.getElementById('pressureCard').classList.remove('sensor-active');
+        }, 1500);
+      }
+    }
+
+    function smoothUpdateValue(elementId, targetValue, currentValueText) {
+      const element = document.getElementById(elementId);
+      let currentValue = parseFloat(currentValueText) || targetValue;
+      const target = parseFloat(targetValue);
+      
+      const diff = target - currentValue;
+      const increment = diff / 10;
+      const isIncreasing = diff > 0;
+      
+      const interval = setInterval(() => {
+        currentValue += increment;
+        
+        const displayValue = elementId === 'temperature' && Math.abs(currentValue - target) > 0.1 ? 
+          currentValue.toFixed(1) : Math.round(currentValue);
+        
+        element.innerHTML = `${displayValue}<span class="unit">${elementId === 'temperature' ? '°C' : 
+                          elementId === 'humidity' ? '%' : 'hPa'}</span>`;
+        
+        if (elementId === 'temperature') {
+          const tempColor = getTemperatureColor(currentValue);
+          element.style.color = tempColor;
+        }
+        
+        if ((isIncreasing && currentValue >= target) || (!isIncreasing && currentValue <= target)) {
+          clearInterval(interval);
+          element.innerHTML = `${elementId === 'temperature' ? target.toFixed(1) : Math.round(target)}<span class="unit">${elementId === 'temperature' ? '°C' : 
+                            elementId === 'humidity' ? '%' : 'hPa'}</span>`;
+        }
+      }, 100);
+    }
+    
+    function getTemperatureColor(temp) {
+      if (temp < 10) return '#a8d8ff';
+      if (temp < 20) return '#d4f1f9';
+      if (temp < 30) return '#fff9b6';
+      return '#ff9a9a';
+    }
+
+    function setWeatherBackground(weatherCondition) {
+      weatherEffects.forEach(effect => {
+        if (effect.parentNode) {
+          effect.parentNode.removeChild(effect);
+        }
+      });
+      weatherEffects = [];
+      
+      let bgColor;
+      let effects = [];
+      
+      if (weatherCondition.includes('rain') || weatherCondition.includes('drizzle')) {
+        bgColor = 'var(--rainy-bg)';
+        effects = createRainEffect();
+      } 
+      else if (weatherCondition.includes('cloud') || weatherCondition.includes('overcast') || weatherCondition.includes('fog') || weatherCondition.includes('mist')) {
+        bgColor = 'var(--cloudy-bg)';
+        effects = createCloudEffect();
+      } 
+      else if (weatherCondition.includes('sunny') || weatherCondition.includes('clear')) {
+        bgColor = 'var(--sunny-bg)';
+        effects = createSunEffect();
+      } 
+      else if (weatherCondition.includes('thunderstorm')) {
+        bgColor = 'var(--rainy-bg)';
+        effects = [...createRainEffect(), ...createThunderEffect()];
+      } 
+      else if (weatherCondition.includes('snow')) {
+        bgColor = 'var(--cloudy-bg)';
+        effects = createSnowEffect();
+      } 
+      else {
+        bgColor = 'var(--default-bg)';
+      }
+      
+      document.body.style.background = bgColor;
+      effects.forEach(effect => {
+        document.body.appendChild(effect);
+        weatherEffects.push(effect);
+      });
+    }
+    
+    function updateWeatherIcon(condition) {
+      const iconElement = document.getElementById('weatherIcon');
+      let iconClass = weatherIcons.default;
+      
+      for (const [key, value] of Object.entries(weatherIcons)) {
+        if (condition.includes(key)) {
+          iconClass = value;
+          break;
+        }
+      }
+      
+      iconElement.style.transform = 'scale(0)';
+      setTimeout(() => {
+        iconElement.innerHTML = `<i class="${iconClass}"></i>`;
+        iconElement.style.transform = 'scale(1)';
+      }, 300);
+    }
+    
+    function createSunEffect() {
+      const sun = document.createElement('div');
+      sun.className = 'weather-effect sun';
+      return [sun];
+    }
+    
+    function createCloudEffect() {
+      const clouds = [];
+      for (let i = 0; i < 5; i++) {
+        const cloud = document.createElement('div');
+        cloud.className = 'weather-effect cloud';
+        cloud.style.top = `${Math.random() * 30 + 10}%`;
+        cloud.style.left = `${Math.random() * 100}%`;
+        cloud.style.transform = `scale(${Math.random() * 0.5 + 0.5})`;
+        cloud.style.opacity = Math.random() * 0.5 + 0.3;
+        cloud.style.animation = `cloudMove ${Math.random() * 60 + 60}s linear infinite`;
+        cloud.style.animationDelay = `${Math.random() * 20}s`;
+        clouds.push(cloud);
+      }
+      return clouds;
+    }
+    
+    function createRainEffect() {
+      const rains = [];
+      for (let i = 0; i < 50; i++) {
+        const rain = document.createElement('div');
+        rain.className = 'weather-effect rain';
+        rain.style.left = `${Math.random() * 100}%`;
+        rain.style.top = `${Math.random() * 100 - 10}%`;
+        rain.style.animationDuration = `${Math.random() * 0.5 + 0.5}s`;
+        rain.style.animationDelay = `${Math.random() * 2}s`;
+        rains.push(rain);
+      }
+      return rains;
+    }
+    
+    function createSnowEffect() {
+      const snowflakes = [];
+      for (let i = 0; i < 30; i++) {
+        const snow = document.createElement('div');
+        snow.className = 'weather-effect snow';
+        snow.innerHTML = '❄';
+        snow.style.fontSize = `${Math.random() * 10 + 10}px`;
+        snow.style.left = `${Math.random() * 100}%`;
+        snow.style.top = `${Math.random() * 100 - 10}%`;
+        snow.style.animation = `rain ${Math.random() * 5 + 5}s linear infinite`;
+        snow.style.animationDelay = `${Math.random() * 5}s`;
+        snowflakes.push(snow);
+      }
+      return snowflakes;
+    }
+    
+    function createThunderEffect() {
+      const lightnings = [];
+      for (let i = 0; i < 3; i++) {
+        const lightning = document.createElement('div');
+        lightning.className = 'weather-effect lightning';
+        lightning.style.position = 'absolute';
+        lightning.style.width = '100%';
+        lightning.style.height = '100%';
+        lightning.style.top = '0';
+        lightning.style.left = '0';
+        lightning.style.background = 'rgba(255, 255, 255, 0.8)';
+        lightning.style.opacity = '0';
+        lightning.style.animation = 'lightning 5s linear infinite';
+        lightning.style.animationDelay = `${Math.random() * 10}s`;
+        lightnings.push(lightning);
+      }
+      return lightnings;
+    }
+  </script>
+</body>
+</html>
